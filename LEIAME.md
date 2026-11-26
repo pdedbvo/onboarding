@@ -17,7 +17,7 @@ Settings → Pages → branch `main`, pasta `/root`.
 - **Administrador**: vê todas as agendas e cadastra pessoas na aba **Acessos**. Quem está em `editores` (Estúdio) já entra como Administrador.
 - **RH**: vê e edita todas as agendas, pode excluir.
 - **Líder**: vê e edita só as agendas em que é o líder (o e-mail dele).
-- Cadastro: aba Acessos → nome, e-mail da empresa, perfil e senha inicial (opcional). Com senha, o login é criado na hora; é o mesmo e-mail que a pessoa usa para entrar. Grava em `acessosOnboarding/{email}`.
+- Cadastro: aba Acessos → nome, e-mail da empresa, perfil e senha inicial (opcional). A pessoa troca a senha no botão "Trocar senha". Para o login ser criado pelo app, ligue em Authentication → Configurações → Ações do usuário → "Ativar criação (inscrição)". Com senha, o login é criado na hora; é o mesmo e-mail que a pessoa usa para entrar. Grava em `acessosOnboarding/{email}`.
 - Ao criar uma agenda, o líder é escolhido numa lista das pessoas cadastradas.
 
 ### Regras do Firestore (cole o arquivo inteiro e publique)
