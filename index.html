@@ -551,11 +551,41 @@ if ($("#ag-corpo")){
       return;
     }
     $("#ag-conta").innerHTML = `<span class="ag-quem">Conectado como <b>${esc(DB.user.email)}</b><br>${esc(PAPEIS[DB.papel] || "")}</span>
-      <div class="dl"><button class="pill" id="ag-nova">Nova agenda +</button><button class="pill ol" id="ag-lista">Agendas</button>${ehAdmin() ? `<button class="pill ol" id="ag-pess">Acessos</button>` : ""}${DEMO ? "" : `<button class="pill ol" id="ag-sair">Sair</button>`}</div>`;
+      <div class="dl"><button class="pill" id="ag-nova">Nova agenda +</button><button class="pill ol" id="ag-lista">Agendas</button>${ehAdmin() ? `<button class="pill ol" id="ag-pess">Acessos</button>` : ""}${DEMO ? "" : `<button class="pill ol" id="ag-senha">Trocar senha</button><button class="pill ol" id="ag-sair">Sair</button>`}</div>`;
     $("#ag-nova").onclick = () => telaNova();
     $("#ag-lista").onclick = () => telaLista();
     if ($("#ag-pess")) $("#ag-pess").onclick = () => telaPessoas();
     if ($("#ag-sair")) $("#ag-sair").onclick = () => fb.U.signOut(fb.auth);
+    if ($("#ag-senha")) $("#ag-senha").onclick = () => telaSenha();
+  }
+  /* ---- trocar a própria senha ---- */
+  function telaSenha(){
+    $("#ag-corpo").innerHTML = `<div class="ag-novo"><div><p class="eyebrow">Minha conta</p><h2 class="h2">Trocar senha</h2></div>
+      <div class="ag-dados ag-pd"><label>Senha atual<input id="sn-at" type="password" autocomplete="current-password"></label>
+        <label>Nova senha<input id="sn-nv" type="password" autocomplete="new-password" placeholder="Mín. 6 caracteres"></label>
+        <label>Repita a nova senha<input id="sn-rp" type="password" autocomplete="new-password"></label></div>
+      <span class="ag-msg" id="sn-msg" style="color:var(--cinza)">Use a senha que você recebeu do administrador como senha atual.</span>
+      <div class="dl"><button class="pill pr" id="sn-ok">Salvar nova senha ${SETAD}</button><button class="pill cl" id="sn-volta">Cancelar</button></div></div>`;
+    const msg = (t, er) => { const m = $("#sn-msg"); m.textContent = t; m.style.color = er ? "#C62828" : "var(--cinza)"; };
+    $("#sn-volta").onclick = () => telaLista();
+    $("#sn-ok").onclick = async () => {
+      const at = $("#sn-at").value, nv = $("#sn-nv").value, rp = $("#sn-rp").value;
+      if (!at || !nv) return msg("Preencha a senha atual e a nova.", true);
+      if (nv.length < 6) return msg("A nova senha precisa de pelo menos 6 caracteres.", true);
+      if (nv !== rp) return msg("As duas senhas novas não são iguais.", true);
+      $("#sn-ok").classList.add("off"); msg("Salvando…");
+      try {
+        const u = fb.auth.currentUser;
+        await fb.U.reauthenticateWithCredential(u, fb.U.EmailAuthProvider.credential(u.email, at));
+        await fb.U.updatePassword(u, nv);
+        $("#ag-corpo").innerHTML = `<div class="ag-vz" style="margin-top:26px">Senha trocada. Use a nova senha no próximo acesso.<br><button class="pill pr" id="sn-ok2">Voltar às agendas</button></div>`;
+        $("#sn-ok2").onclick = () => telaLista();
+      } catch(e){
+        const c = String(e.code || "");
+        msg(/wrong-password|invalid-credential|invalid-login/.test(c) ? "A senha atual está incorreta." : /weak-password/.test(c) ? "Senha nova muito fraca. Tente outra." : /too-many/.test(c) ? "Muitas tentativas. Espere alguns minutos." : "Não deu para trocar agora. Tente de novo.", true);
+        $("#sn-ok").classList.remove("off");
+      }
+    };
   }
 
   /* ---- telas ---- */
@@ -695,7 +725,7 @@ if ($("#ag-corpo")){
         <div class="ag-dados ag-pd"><label>Nome<input id="ps-nome" type="text"></label><label>E-mail da empresa<input id="ps-em" type="email" autocomplete="off"></label>
           <label>Perfil<select id="ps-pp"><option value="Lider">Líder</option><option value="RH">RH</option><option value="Administrador">Administrador</option></select></label>
           <label>Senha inicial (opcional)<input id="ps-pw" type="text" autocomplete="off" placeholder="Mín. 6 caracteres"></label></div>
-        <span class="ag-msg" id="ps-msg" style="color:var(--cinza)">Com senha, o login é criado na hora. É o mesmo e-mail que a pessoa usa para entrar. Sem senha, só o perfil é salvo (o login já existe ou é criado no Firebase).</span>
+        <span class="ag-msg" id="ps-msg" style="color:var(--cinza)">Com senha, o login é criado na hora. É o mesmo e-mail que a pessoa usa para entrar, e ela pode trocar a senha depois em "Trocar senha". Sem senha, só o perfil é salvo (o login já existe ou é criado no Firebase).</span>
         <div class="dl"><button class="pill pr" id="ps-ok">Salvar pessoa ${SETAD}</button></div></div>
       <section class="bl"><div class="cab"><div><p class="eyebrow">${L.length} ${L.length === 1 ? "pessoa" : "pessoas"}</p><h2 class="h2">Quem tem acesso</h2></div></div>
         <div class="ag-ps">${L.length ? L.map(x => `<div class="ps" data-em="${esc(x.email)}"><span class="ic">${esc((x.nome || x.email).trim().slice(0,2).toUpperCase())}</span>
