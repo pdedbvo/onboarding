@@ -230,6 +230,30 @@ a.jc:hover{transform:translateY(-3px);background:#000}
 .ag-acoes{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:26px}
 .ag-novo{margin-top:26px;border-radius:var(--raio);background:var(--sup);padding:22px;display:flex;flex-direction:column;gap:14px}
 .ag-novo .ag-dados{padding:0;background:none;grid-template-columns:repeat(3,minmax(0,1fr))}
+.ag-lid{position:relative}
+.ag-lid input.er{border-color:#C62828}
+.ag-lid-em{font-size:11px;letter-spacing:.04em;text-transform:none;color:var(--cinza);min-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-lid-lista{position:absolute;left:0;right:0;top:calc(100% - 14px);z-index:10;background:var(--branco);border:1px solid var(--preto);border-radius:12px;box-shadow:0 14px 30px rgba(17,17,17,.18);padding:6px;display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto}
+.ag-lid-lista[hidden]{display:none}
+.ag-lid-lista button{display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 10px;border-radius:8px;text-transform:none;letter-spacing:0}
+.ag-lid-lista button b{font-size:14px;color:var(--preto);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-lid-lista button span{font-size:12px;color:var(--cinza);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-lid-lista button:hover,.ag-lid-lista button.at{background:var(--sup)}
+.ag-lid-lista em{font-style:normal;font-size:13px;color:var(--cinza);padding:10px;text-transform:none;letter-spacing:0;line-height:1.4}
+.ag-exc{margin-top:26px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 22px;border-radius:var(--raio);border:1px solid rgba(198,40,40,.35)}
+.ag-exc b{display:block;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:#C62828}
+.ag-exc span{font-size:13px;color:var(--cinza)}
+.ag-dados select{font:inherit;font-size:14px;letter-spacing:0;text-transform:none;color:var(--preto);padding:10px 12px;border-radius:10px;border:1px solid var(--linha);background:var(--branco);outline:none;width:100%}
+.ag-novo .ag-pd{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ag-ps{display:flex;flex-direction:column;gap:8px}
+.ps{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 14px;border-radius:var(--raio);background:var(--sup)}
+.ps .ic{width:44px;height:44px;border-radius:12px;background:var(--preto);color:var(--branco);display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.06em}
+.ps-t{min-width:0}.ps-t b{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-t span{display:block;font-size:13px;color:var(--cinza);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps .st{background:var(--preto)}.ps .st.rh{background:#646464}.ps .st.ld{background:var(--claro);color:var(--preto)}
+.ps .pill{padding:8px 12px;font-size:11px}
+@media (max-width:980px){.ag-novo .ag-pd{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.ag-novo .ag-pd{grid-template-columns:1fr}.ps{grid-template-columns:40px minmax(0,1fr) auto}.ps .ic{width:40px;height:40px}.ps .dl{grid-column:1/-1}}
 .ag-demo{display:inline-block;margin-top:10px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--preto);background:#FFB484;border-radius:99px;padding:4px 10px}
 @media (max-width:980px){
   .rs-h,.rs-l{grid-template-columns:120px minmax(0,1fr) repeat(5,minmax(0,1fr))}
@@ -405,7 +429,8 @@ if ($("#on-jr")){
 /* =============== AGENDA DE ONBOARDING ===============
    Grava no Firebase sharepoint-studio (o mesmo do Estúdio), coleção "onboarding".
    Login: e-mail e senha do Firebase Auth. Papel: editores/{email} = RH (vê tudo);
-   acessosOnboarding/{email} { papel: "RH" | "Lider" }. Líder vê só as agendas com o e-mail dele.
+   acessosOnboarding/{email} { nome, papel: "Administrador" | "RH" | "Lider" } (cadastro na aba Acessos).
+   Administrador e RH veem todas as agendas; só o Administrador cadastra pessoas. Líder vê só as agendas com o e-mail dele.
    ?demo testa sem login, gravando só neste navegador. */
 if ($("#ag-corpo")){
   const DEMO = qs.has("demo"), FB_V = "10.12.2";
@@ -431,7 +456,10 @@ if ($("#ag-corpo")){
   const ROT = {ok:"Concluída", at:"Com atraso", em:"Em dia"};
 
   /* ---- banco ---- */
-  const DB = { user: null, papel: "", lista: [] };
+  const DB = { user: null, papel: "", lista: [], pessoas: [] };
+  const veTudo = () => DB.papel === "Administrador" || DB.papel === "RH", ehAdmin = () => DB.papel === "Administrador";
+  const PAPEIS = { Administrador: "Administrador: vê todas as agendas e cadastra pessoas", RH: "RH: vê todas as agendas", Lider: "Líder: vê as agendas do seu time" };
+  const papelDe = t => { t = String(t || "").toLowerCase(); return t.startsWith("adm") ? "Administrador" : t === "rh" ? "RH" : t ? "Lider" : ""; };
   const fb = {};
   const chave = () => (P.firebase || {}).apiKey;
   async function fbCarrega(){
@@ -451,11 +479,15 @@ if ($("#ag-corpo")){
         itens: { notebook: {ok: true} } }
     ];
   }
+  function demoPessoas(){
+    try { const l = JSON.parse(localStorage.getItem("onboarding:demo:pessoas") || "null"); if (l) return l; } catch(e){}
+    return [{ email: "lider@exemplo.com", nome: "Líder Exemplo", papel: "Lider" }, { email: "outra.lider@exemplo.com", nome: "Outra Líder", papel: "Lider" }, { email: "rh@exemplo.com", nome: "RH Exemplo", papel: "RH" }];
+  }
   const banco = {
     async listar(){
-      if (DEMO){ let l = demoLer(); if (!l){ l = demoInicial(); demoGravar(l); } return DB.papel === "RH" ? l : l.filter(x => x.liderEmail === DB.user.email); }
+      if (DEMO){ let l = demoLer(); if (!l){ l = demoInicial(); demoGravar(l); } return veTudo() ? l : l.filter(x => x.liderEmail === DB.user.email); }
       const { collection, getDocs, query, where } = fb.S, c = collection(fb.db, "onboarding");
-      const r = await getDocs(DB.papel === "RH" ? c : query(c, where("liderEmail", "==", DB.user.email)));
+      const r = await getDocs(veTudo() ? c : query(c, where("liderEmail", "==", DB.user.email)));
       return r.docs.map(d => ({ id: d.id, ...d.data() }));
     },
     async criar(p){
@@ -467,6 +499,34 @@ if ($("#ag-corpo")){
       const meta = { atualizadoEm: new Date().toISOString(), atualizadoPor: DB.user.email };
       if (DEMO){ const l = demoLer() || [], i = l.findIndex(x => x.id === p.id); if (i >= 0){ l[i] = { ...p, ...meta }; demoGravar(l); } return; }
       await fb.S.updateDoc(fb.S.doc(fb.db, "onboarding", p.id), { ...campos, ...meta });
+    },
+    async pessoas(){
+      if (DEMO){ let l = demoPessoas(); return l; }
+      const r = await fb.S.getDocs(fb.S.collection(fb.db, "acessosOnboarding"));
+      return r.docs.map(d => ({ email: d.id, ...d.data() }));
+    },
+    async salvarPessoa(x){
+      const dado = { nome: x.nome, papel: x.papel, atualizadoEm: new Date().toISOString(), atualizadoPor: DB.user.email };
+      if (DEMO){ const l = demoPessoas().filter(y => y.email !== x.email); l.push({ email: x.email, ...dado }); try { localStorage.setItem("onboarding:demo:pessoas", JSON.stringify(l)); } catch(e){} return ""; }
+      await fb.S.setDoc(fb.S.doc(fb.db, "acessosOnboarding", x.email), dado, { merge: true });
+      if (!x.senha) return "";
+      /* cria o login numa instância separada, para não trocar o usuário conectado */
+      try {
+        const A = await import(`https://www.gstatic.com/firebasejs/${FB_V}/firebase-app.js`);
+        const app2 = A.getApps().find(a => a.name === "cadastro") || A.initializeApp(fb.app.options, "cadastro");
+        const au2 = fb.U.getAuth(app2);
+        await fb.U.createUserWithEmailAndPassword(au2, x.email, x.senha); await fb.U.signOut(au2);
+        return "login";
+      } catch(e){
+        const c = String(e.code || "");
+        if (c.includes("email-already-in-use")) return "existe";
+        if (c.includes("weak-password")) return "fraca";
+        return "semcriar";
+      }
+    },
+    async excluirPessoa(email){
+      if (DEMO){ try { localStorage.setItem("onboarding:demo:pessoas", JSON.stringify(demoPessoas().filter(y => y.email !== email))); } catch(e){} return; }
+      await fb.S.deleteDoc(fb.S.doc(fb.db, "acessosOnboarding", email));
     },
     async excluir(p){
       if (DEMO){ demoGravar((demoLer() || []).filter(x => x.id !== p.id)); return; }
@@ -490,9 +550,11 @@ if ($("#ag-corpo")){
         catch(err){ pintaConta(/invalid|wrong|user-not-found|credential/i.test(String(err.code)) ? "E-mail ou senha incorretos." : "Não deu para entrar agora. Tente de novo.", true); } };
       return;
     }
-    $("#ag-conta").innerHTML = `<span class="ag-quem">Conectado como <b>${esc(DB.user.email)}</b><br>${DB.papel === "RH" ? "RH: vê todas as agendas" : "Líder: vê as agendas do seu time"}</span>
-      <div class="dl"><button class="pill" id="ag-nova">Nova agenda +</button>${DEMO ? "" : `<button class="pill ol" id="ag-sair">Sair</button>`}</div>`;
+    $("#ag-conta").innerHTML = `<span class="ag-quem">Conectado como <b>${esc(DB.user.email)}</b><br>${esc(PAPEIS[DB.papel] || "")}</span>
+      <div class="dl"><button class="pill" id="ag-nova">Nova agenda +</button><button class="pill ol" id="ag-lista">Agendas</button>${ehAdmin() ? `<button class="pill ol" id="ag-pess">Acessos</button>` : ""}${DEMO ? "" : `<button class="pill ol" id="ag-sair">Sair</button>`}</div>`;
     $("#ag-nova").onclick = () => telaNova();
+    $("#ag-lista").onclick = () => telaLista();
+    if ($("#ag-pess")) $("#ag-pess").onclick = () => telaPessoas();
     if ($("#ag-sair")) $("#ag-sair").onclick = () => fb.U.signOut(fb.auth);
   }
 
@@ -528,17 +590,46 @@ if ($("#ag-corpo")){
     $$(".ac").forEach(b => b.onclick = () => telaFicha(DB.lista.find(p => p.id === b.dataset.id)));
     if ($("#ag-nova2")) $("#ag-nova2").onclick = () => telaNova();
   }
-  const CAMPOS = [["nome","Nome","text"],["cargo","Cargo","text"],["setor","Setor / centro de custo","text"],["lider","Líder direto","text"],["liderEmail","E-mail do líder","email"],["aceite","Data do aceite","date"],["inicio","Data de início","date"]];
-  const campos = (p, travaLider) => CAMPOS.map(([k,t,ty]) => `<label>${t}<input data-k="${k}" type="${ty}" value="${esc(p[k] || "")}" ${k==="liderEmail" && travaLider ? "disabled" : ""}></label>`).join("");
-  function telaNova(){
-    const lider = DB.papel !== "RH", p = lider ? { liderEmail: DB.user.email } : {};
+  const CAMPOS = [["nome","Nome","text"],["cargo","Cargo","text"],["setor","Setor / centro de custo","text"],["aceite","Data do aceite","date"],["inicio","Data de início","date"]];
+  const campoLider = (p, trava) => `<label class="ag-lid">Líder direto
+      <input data-lid type="search" autocomplete="off" placeholder="${trava ? "" : "Digite o nome ou e-mail e escolha na lista"}" value="${esc(p.lider || "")}" ${trava ? "disabled" : ""}>
+      <span class="ag-lid-em">${esc(p.liderEmail || "")}</span><span class="ag-lid-lista" hidden></span></label>`;
+  const campos = (p, trava) => CAMPOS.slice(0,3).map(([k,t,ty]) => `<label>${t}<input data-k="${k}" type="${ty}" value="${esc(p[k] || "")}"></label>`).join("") + campoLider(p, trava)
+    + CAMPOS.slice(3).map(([k,t,ty]) => `<label>${t}<input data-k="${k}" type="${ty}" value="${esc(p[k] || "")}"></label>`).join("");
+  async function carregaPessoas(){ if (!veTudo()) return; try { DB.pessoas = await banco.pessoas(); } catch(e){ DB.pessoas = []; } }
+  /* caixinha flutuante: escolhe o líder entre as pessoas cadastradas na aba Acessos */
+  function ligaLider(raiz, p, aoEscolher){
+    const inp = raiz.querySelector("[data-lid]"), lista = raiz.querySelector(".ag-lid-lista"), em = raiz.querySelector(".ag-lid-em");
+    if (!inp || inp.disabled) return;
+    let sel = 0, vis = [];
+    const pinta = () => { const ws = norm(inp.value).split(/\s+/).filter(Boolean);
+      vis = DB.pessoas.filter(x => ws.every(w => norm((x.nome || "") + " " + x.email).includes(w))).sort((a,b) => (a.papel === "Lider" ? 0 : 1) - (b.papel === "Lider" ? 0 : 1) || String(a.nome).localeCompare(String(b.nome))).slice(0, 8);
+      lista.innerHTML = vis.length ? vis.map((x,i) => `<button type="button" class="${i===sel ? "at" : ""}" data-i="${i}"><b>${esc(x.nome || x.email)}</b><span>${esc(x.email)} · ${esc(x.papel === "Lider" ? "Líder" : x.papel)}</span></button>`).join("")
+        : `<em>${DB.pessoas.length ? "Ninguém com esse nome." : "Nenhuma pessoa cadastrada ainda."} ${ehAdmin() ? "Cadastre na aba Acessos." : "Peça ao administrador para cadastrar."}</em>`;
+      lista.hidden = false;
+      lista.querySelectorAll("button").forEach(b => b.onmousedown = e => { e.preventDefault(); escolhe(vis[+b.dataset.i]); }); };
+    const escolhe = x => { if (!x) return; p.lider = x.nome || x.email; p.liderEmail = x.email; inp.value = p.lider; em.textContent = x.email; lista.hidden = true; inp.classList.remove("er"); aoEscolher && aoEscolher(); };
+    inp.onfocus = () => { sel = 0; pinta(); };
+    inp.oninput = () => { sel = 0; pinta(); };
+    inp.onblur = () => { setTimeout(() => { lista.hidden = true; if (inp.value.trim() !== (p.lider || "")) inp.value = p.lider || ""; }, 120); };
+    inp.onkeydown = e => { if (lista.hidden) return;
+      if (e.key === "ArrowDown"){ sel = Math.min(sel+1, vis.length-1); pinta(); e.preventDefault(); }
+      else if (e.key === "ArrowUp"){ sel = Math.max(sel-1, 0); pinta(); e.preventDefault(); }
+      else if (e.key === "Enter"){ escolhe(vis[sel]); e.preventDefault(); }
+      else if (e.key === "Escape"){ lista.hidden = true; } };
+  }
+  async function telaNova(){
+    const lider = !veTudo(), p = lider ? { liderEmail: DB.user.email, lider: DB.user.nome || DB.user.email } : {};
+    if (!lider) await carregaPessoas();
     $("#ag-corpo").innerHTML = `<div class="ag-novo"><div><p class="eyebrow">Nova agenda</p><h2 class="h2">Quem está chegando?</h2></div>
-      <div class="ag-dados">${campos(p, lider)}</div><span class="ag-msg" id="ag-nm" style="color:var(--cinza)">Nome, e-mail do líder e data de início são obrigatórios.</span>
+      <div class="ag-dados">${campos(p, lider)}</div><span class="ag-msg" id="ag-nm" style="color:var(--cinza)">Nome, líder e data de início são obrigatórios.</span>
       <div class="dl"><button class="pill pr" id="ag-criar">Criar agenda ${SETAD}</button><button class="pill cl" id="ag-volta">Cancelar</button></div></div>`;
     $("#ag-volta").onclick = telaLista;
+    ligaLider($(".ag-novo"), p);
     $("#ag-criar").onclick = async () => {
-      const v = {}; $$(".ag-novo input").forEach(i => v[i.dataset.k] = i.value.trim()); v.liderEmail = (v.liderEmail || "").toLowerCase();
-      if (!v.nome || !v.inicio || !v.liderEmail){ $("#ag-nm").style.color = "#C62828"; return; }
+      const v = {}; $$(".ag-novo input[data-k]").forEach(i => v[i.dataset.k] = i.value.trim());
+      v.lider = p.lider || ""; v.liderEmail = (p.liderEmail || "").toLowerCase();
+      if (!v.nome || !v.inicio || !v.liderEmail){ $("#ag-nm").style.color = "#C62828"; if (!v.liderEmail) $(".ag-novo [data-lid]").classList.add("er"); return; }
       $("#ag-criar").classList.add("off");
       try { const n = await banco.criar(v); DB.lista.push(n); telaFicha(n); }
       catch(e){ $("#ag-nm").style.color = "#C62828"; $("#ag-nm").textContent = erroTxt(e); $("#ag-criar").classList.remove("off"); }
@@ -546,7 +637,7 @@ if ($("#ag-corpo")){
   }
   function telaFicha(p){
     if (!p) return telaLista();
-    const lider = DB.papel !== "RH", i0 = dt(p.inicio);
+    const lider = !veTudo(), i0 = dt(p.inicio);
     const linha = it => { const s = (p.itens || {})[it.id] || {}, e = estado(it, p), d = previsto(it, p);
       return `<div class="gx ${s.ok ? "ok" : ""}" data-id="${esc(it.id)}"><button class="ck" aria-label="Marcar como feito" aria-pressed="${!!s.ok}">${CHK}</button>
         <div><div class="tt">${esc(it.t)}</div><div class="mt">${esc(it.q || it.h || "")}${it.resp ? " · " + esc(it.resp) : ""}${it.fac ? " · com " + esc(it.fac) : ""}${e === "at" ? ' · <span class="at">Atrasado</span>' : e === "lg" ? ' · <span class="lg">Esta semana</span>' : ""}</div>
@@ -559,7 +650,8 @@ if ($("#ag-corpo")){
         <div class="ag-res"><div class="pc" id="ag-pc"></div><div class="br"><i id="ag-br"></i></div>
           <dl><dt>Início</dt><dd>${br(p.inicio)}</dd><dt>45 dias</dt><dd>${i0 ? br(mais(i0,45)) : "—"}</dd><dt>90 dias</dt><dd>${i0 ? br(mais(i0,90)) : "—"}</dd><dt>Situação</dt><dd id="ag-st"></dd></dl></div></div>
       <div class="ag-fases">${FASES.map(f => `<div class="af"><div class="af-h"><b>${esc(f.t)}</b><span data-fc="${esc(f.id)}"></span></div>${f.itens.map(linha).join("")}</div>`).join("")}</div>
-      ${lider ? "" : `<div class="ag-acoes"><span></span><button class="pill cl" id="ag-exc">Excluir agenda</button></div>`}`;
+      ${lider ? "" : `<div class="ag-exc"><div><b>Excluir esta agenda</b><span id="ag-exc-msg">Apaga a ficha e todos os registros. Não dá para desfazer.</span></div>
+        <div class="dl" id="ag-exc-bt"><button class="pill cl" id="ag-exc">Excluir agenda</button></div></div>`}`;
     const atual = () => { const r = resumo(p);
       $("#ag-pc").innerHTML = `${r.pc}%<small>${r.ok} de ${r.tot} feitos</small>`; $("#ag-br").style.width = r.pc + "%";
       $("#ag-st").innerHTML = `<span class="st ${r.st === "em" ? "" : r.st}">${ROT[r.st]}</span>`;
@@ -577,20 +669,70 @@ if ($("#ag-corpo")){
         row.classList.toggle("ok", s.ok); row.querySelector(".ck").setAttribute("aria-pressed", s.ok); atual(); gravaItem(id); };
       row.querySelector(".dt input").onchange = e => { item(id).data = e.target.value; atual(); gravaItem(id); };
       row.querySelectorAll("textarea").forEach(t => t.oninput = () => { const s = item(id); s.reg = s.reg || {}; s.reg[t.dataset.r] = t.value; depois(id, () => gravaItem(id)); }); });
-    $$(".ag-ficha .ag-dados input").forEach(i => i.oninput = () => { const k = i.dataset.k; p[k] = k === "liderEmail" ? i.value.trim().toLowerCase() : i.value.trim();
+    $$(".ag-ficha .ag-dados input[data-k]").forEach(i => i.oninput = () => { const k = i.dataset.k; p[k] = i.value.trim();
       depois("f-" + k, () => grava({ [k]: p[k] })); });
+    if (!lider) carregaPessoas().then(() => ligaLider($(".ag-ficha"), p, () => grava({ lider: p.lider, liderEmail: p.liderEmail })));
     $("#ag-volta").onclick = () => pintaLista();
-    if ($("#ag-exc")) $("#ag-exc").onclick = async e => { const b = e.currentTarget;
-      if (!b.dataset.c){ b.dataset.c = 1; b.textContent = "Confirmar exclusão"; b.className = "pill pr"; return; }
-      try { await banco.excluir(p); DB.lista = DB.lista.filter(x => x !== p); pintaLista(); } catch(err){ avisa(erroTxt(err), "#C62828"); } };
+    if ($("#ag-exc")) $("#ag-exc").onclick = () => {
+      $("#ag-exc-msg").textContent = `Tem certeza? A agenda de ${p.nome || "sem nome"} será apagada.`;
+      $("#ag-exc-bt").innerHTML = `<button class="pill pr" id="ag-exc-sim">Sim, excluir</button><button class="pill cl" id="ag-exc-nao">Cancelar</button>`;
+      $("#ag-exc-nao").onclick = () => telaFicha(p);
+      $("#ag-exc-sim").onclick = async () => { $("#ag-exc-sim").classList.add("off"); $("#ag-exc-msg").textContent = "Excluindo…";
+        try { await banco.excluir(p); DB.lista = DB.lista.filter(x => x.id !== p.id); pintaLista(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+        catch(err){ const m = $("#ag-exc-msg"); m.textContent = erroTxt(err) + (err && err.code ? ` (${err.code})` : ""); m.style.color = "#C62828"; $("#ag-exc-sim").classList.remove("off"); } };
+    };
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /* ---- acessos (só Administrador) ---- */
+  async function telaPessoas(){
+    if (!ehAdmin()) return telaLista();
+    $("#ag-corpo").innerHTML = `<div class="ag-vz" style="margin-top:26px">Carregando pessoas…</div>`;
+    try { DB.pessoas = await banco.pessoas(); } catch(e){ $("#ag-corpo").innerHTML = `<div class="ag-vz" style="margin-top:26px">${esc(erroTxt(e))}</div>`; return; }
+    const ord = { Administrador: 0, RH: 1, Lider: 2 };
+    const L = DB.pessoas.slice().sort((a,b) => (ord[a.papel] ?? 3) - (ord[b.papel] ?? 3) || String(a.nome).localeCompare(String(b.nome)));
+    $("#ag-corpo").innerHTML = `<div class="ag-novo"><div><p class="eyebrow">Acessos</p><h2 class="h2">Cadastrar pessoa</h2></div>
+        <div class="ag-dados ag-pd"><label>Nome<input id="ps-nome" type="text"></label><label>E-mail da empresa<input id="ps-em" type="email" autocomplete="off"></label>
+          <label>Perfil<select id="ps-pp"><option value="Lider">Líder</option><option value="RH">RH</option><option value="Administrador">Administrador</option></select></label>
+          <label>Senha inicial (opcional)<input id="ps-pw" type="text" autocomplete="off" placeholder="Mín. 6 caracteres"></label></div>
+        <span class="ag-msg" id="ps-msg" style="color:var(--cinza)">Com senha, o login é criado na hora. É o mesmo e-mail que a pessoa usa para entrar. Sem senha, só o perfil é salvo (o login já existe ou é criado no Firebase).</span>
+        <div class="dl"><button class="pill pr" id="ps-ok">Salvar pessoa ${SETAD}</button></div></div>
+      <section class="bl"><div class="cab"><div><p class="eyebrow">${L.length} ${L.length === 1 ? "pessoa" : "pessoas"}</p><h2 class="h2">Quem tem acesso</h2></div></div>
+        <div class="ag-ps">${L.length ? L.map(x => `<div class="ps" data-em="${esc(x.email)}"><span class="ic">${esc((x.nome || x.email).trim().slice(0,2).toUpperCase())}</span>
+          <span class="ps-t"><b>${esc(x.nome || "—")}</b><span>${esc(x.email)}</span></span>
+          <span class="st ${x.papel === "Administrador" ? "" : x.papel === "RH" ? "rh" : "ld"}">${esc(x.papel === "Lider" ? "Líder" : x.papel)}</span>
+          <span class="dl"><button class="pill cl ps-ed">Editar</button><button class="pill cl ps-rm">Remover</button></span></div>`).join("")
+          : `<div class="ag-vz">Ninguém cadastrado ainda. Comece pela Carol (RH) e pelos líderes.</div>`}</div>
+        <p class="rs-pe">Quem está no Estúdio como editor entra aqui como Administrador. Remover tira o acesso à agenda, mas não apaga o login.</p></section>`;
+    const msg = (t, er) => { const m = $("#ps-msg"); m.textContent = t; m.style.color = er ? "#C62828" : "var(--cinza)"; };
+    $("#ps-ok").onclick = async () => {
+      const x = { nome: $("#ps-nome").value.trim(), email: $("#ps-em").value.trim().toLowerCase(), papel: $("#ps-pp").value, senha: $("#ps-pw").value };
+      if (!x.nome || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.email)) return msg("Preencha o nome e um e-mail válido.", true);
+      if (x.senha && x.senha.length < 6) return msg("A senha precisa de pelo menos 6 caracteres.", true);
+      $("#ps-ok").classList.add("off"); msg("Salvando…");
+      try { const r = await banco.salvarPessoa(x);
+        await telaPessoas();
+        msg(r === "login" ? `${x.nome} cadastrado(a). Login criado: passe o e-mail e a senha para a pessoa.`
+          : r === "existe" ? `${x.nome} cadastrado(a). Esse e-mail já tinha login, então a senha não mudou.`
+          : r === "fraca" ? `${x.nome} cadastrado(a), mas a senha é fraca e o login não foi criado. Tente outra senha.`
+          : r === "semcriar" ? `${x.nome} cadastrado(a), mas o Firebase não deixou criar o login daqui. Crie em Authentication → Adicionar usuário.`
+          : `${x.nome} cadastrado(a).`, r === "fraca" || r === "semcriar");
+      } catch(e){ msg(erroTxt(e), true); $("#ps-ok").classList.remove("off"); }
+    };
+    $$(".ps").forEach(row => { const x = L.find(y => y.email === row.dataset.em);
+      row.querySelector(".ps-ed").onclick = () => { $("#ps-nome").value = x.nome || ""; $("#ps-em").value = x.email; $("#ps-pp").value = x.papel || "Lider"; $("#ps-pw").value = "";
+        msg(`Editando ${x.nome || x.email}. Mude o nome ou o perfil e salve.`); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      row.querySelector(".ps-rm").onclick = async e => { const b = e.currentTarget;
+        if (x.email === DB.user.email) return msg("Você não pode remover o seu próprio acesso.", true);
+        if (!b.dataset.c){ b.dataset.c = 1; b.textContent = "Confirmar"; b.className = "pill pr ps-rm"; return; }
+        try { await banco.excluirPessoa(x.email); telaPessoas(); } catch(err){ msg(erroTxt(err), true); } }; });
   }
 
   /* ---- início ---- */
   if (DEMO){
     $("#ag-demo").innerHTML = `<span class="ag-demo">Modo de teste · grava só neste navegador</span>`;
-    DB.user = { email: "demo@dbvo" }; DB.papel = qs.get("demo") === "lider" ? "Lider" : "RH";
-    if (DB.papel === "Lider") DB.user.email = "lider@exemplo.com";
+    DB.user = { email: "demo@dbvo" }; DB.papel = qs.get("demo") === "lider" ? "Lider" : qs.get("demo") === "rh" ? "RH" : "Administrador";
+    if (DB.papel === "Lider"){ DB.user.email = "lider@exemplo.com"; DB.user.nome = "Líder Exemplo"; }
     pintaConta(); telaLista();
   } else {
     pintaConta(); telaFora();
@@ -599,10 +741,11 @@ if ($("#ag-corpo")){
       if (!u){ pintaConta(); telaFora(); return; }
       const { doc, getDoc } = fb.S, tem = async (c, id) => { try { return await getDoc(doc(fb.db, c, id)); } catch(e){ return null; } };
       const ed = await tem("editores", DB.user.email);
-      if (ed && ed.exists()) DB.papel = "RH";
-      else { const ac = await tem("acessosOnboarding", DB.user.email); if (ac && ac.exists()) DB.papel = (ac.data().papel || "").toUpperCase() === "RH" ? "RH" : "Lider"; }
+      const ac = await tem("acessosOnboarding", DB.user.email);
+      if (ac && ac.exists()){ DB.papel = papelDe(ac.data().papel); DB.user.nome = ac.data().nome || ""; }
+      if (ed && ed.exists()) DB.papel = "Administrador";
       if (!DB.papel){ pintaConta(); $("#ag-conta").querySelector(".dl").innerHTML = `<button class="pill ol" id="ag-sair">Sair</button>`; $("#ag-sair").onclick = () => fb.U.signOut(fb.auth);
-        $("#ag-corpo").innerHTML = `<div class="ag-vz" style="margin-top:26px">Seu login ainda não tem acesso à agenda de onboarding. Peça ao RH para liberar.</div>`; return; }
+        $("#ag-corpo").innerHTML = `<div class="ag-vz" style="margin-top:26px">Seu login ainda não tem acesso à agenda de onboarding. Peça ao administrador para liberar.</div>`; return; }
       pintaConta(); telaLista();
     })).catch(() => pintaConta("Não deu para carregar o login agora. Recarregue a página.", true));
   }

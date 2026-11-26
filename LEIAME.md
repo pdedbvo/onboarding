@@ -13,24 +13,43 @@ Plataforma da jornada do colaborador do Grupo DBVO: recrutamento e seleção, gu
 ## Publicar
 Settings → Pages → branch `main`, pasta `/root`.
 
-## Agenda: banco e acessos (Firebase sharepoint-studio)
-- Coleção `onboarding`: uma ficha por contratação (nome, cargo, setor, líder, liderEmail, aceite, inicio, itens{id:{ok,data,reg}}).
-- Quem está em `editores/{email}` (Estúdio) entra como RH e vê tudo.
-- Outros: criar usuário no Firebase Auth (e-mail/senha) e o doc `acessosOnboarding/{email em minúsculas}` com `papel: "RH"` (ex.: Carol) ou `papel: "Lider"`. Líder vê e cria só agendas com o próprio e-mail em `liderEmail`.
+## Agenda: perfis e acessos (Firebase sharepoint-studio)
+- **Administrador**: vê todas as agendas e cadastra pessoas na aba **Acessos**. Quem está em `editores` (Estúdio) já entra como Administrador.
+- **RH**: vê e edita todas as agendas, pode excluir.
+- **Líder**: vê e edita só as agendas em que é o líder (o e-mail dele).
+- Cadastro: aba Acessos → nome, e-mail da empresa, perfil e senha inicial (opcional). Com senha, o login é criado na hora; é o mesmo e-mail que a pessoa usa para entrar. Grava em `acessosOnboarding/{email}`.
+- Ao criar uma agenda, o líder é escolhido numa lista das pessoas cadastradas.
 
-### Regras a acrescentar no console (Firestore → Regras), dentro de `match /databases/{database}/documents`
+### Regras do Firestore (cole o arquivo inteiro e publique)
 ```
-function ehEditor() { return request.auth != null && exists(/databases/$(database)/documents/editores/$(request.auth.token.email)); }
-function papelOnb() { return get(/databases/$(database)/documents/acessosOnboarding/$(request.auth.token.email)).data.papel; }
-function temOnb() { return request.auth != null && exists(/databases/$(database)/documents/acessosOnboarding/$(request.auth.token.email)); }
-function ehRH() { return ehEditor() || (temOnb() && papelOnb() == "RH"); }
-match /onboarding/{id} {
-  allow read, update: if ehRH() || (temOnb() && resource.data.liderEmail == request.auth.token.email);
-  allow create: if ehRH() || (temOnb() && request.resource.data.liderEmail == request.auth.token.email);
-  allow delete: if ehRH();
-}
-match /acessosOnboarding/{email} {
-  allow read: if request.auth != null && (request.auth.token.email == email || ehRH());
-  allow write: if ehEditor();
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function logado() { return request.auth != null && request.auth.token.email != null; }
+    function dono()   { return logado() && request.auth.token.email == 'sergio.f@edificabpo.com.br'; }
+    function cad()    { return /databases/$(db)/documents/editores/$(request.auth.token.email); }
+    function editor() { return dono() || (logado() && exists(cad())); }
+    function admin()  { return dono() || (logado() && exists(cad()) && get(cad()).data.papel == 'Administrador'); }
+
+    match /conteudo/{doc}   { allow read: if true;     allow write: if editor(); }
+    match /editores/{email} { allow read: if editor(); allow write: if admin(); }
+
+    // ---------- Onboarding: Administrador, RH e Líder ----------
+    function acOnb()    { return /databases/$(db)/documents/acessosOnboarding/$(request.auth.token.email); }
+    function temOnb()   { return logado() && exists(acOnb()); }
+    function papelOnb() { return get(acOnb()).data.papel; }
+    function onbAdmin() { return editor() || (temOnb() && papelOnb() == 'Administrador'); }
+    function onbRH()    { return onbAdmin() || (temOnb() && papelOnb() == 'RH'); }
+
+    match /onboarding/{id} {
+      allow read, update: if onbRH() || (temOnb() && resource.data.liderEmail == request.auth.token.email);
+      allow create: if onbRH() || (temOnb() && request.resource.data.liderEmail == request.auth.token.email);
+      allow delete: if onbRH();
+    }
+    match /acessosOnboarding/{email} {
+      allow read: if logado() && (request.auth.token.email == email || onbRH());
+      allow write: if onbAdmin();
+    }
+  }
 }
 ```
